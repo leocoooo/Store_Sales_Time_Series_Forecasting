@@ -57,8 +57,11 @@ def create_dataset(train_df, stores, oil, holidays):
     for i in [1, 2, 3, 4, 5, 6, 7, 14, 21, 28, 56, 364]:
         df[f'sales_lag_{i}'] = grouped.shift(i)
 
-    for i in [7, 28]:
+    for i in [7, 28, 56]:
         df[f'rolling_mean_{i}'] = grouped.shift(1).transform(lambda x: x.rolling(window=i).mean())
+
+    df["log_sales"] = np.log1p(df["sales"]) # log transformation
+    df["diff_sales"] = grouped.shift(1).transform(lambda x: x.diff()) # differenciation
 
     df['rolling_std_7'] = grouped.shift(1).transform(lambda x: x.rolling(window=7).std())
     df['store_family_velocity'] = grouped.shift(1).transform(lambda x: x.rolling(window=30, min_periods=1).mean())
@@ -69,10 +72,15 @@ def create_dataset(train_df, stores, oil, holidays):
     # Pétrole : Tendance avec backfill pour les premières valeurs
     df['oil_trend_30'] = df['dcoilwtico'] - df['dcoilwtico'].shift(30).bfill()
 
-    # Promotions et Interactions
+    # Promotions 
     promo_avg = df.groupby(['store_nbr', 'family'])['onpromotion'].transform('mean')
     df['promo_ratio_vs_avg'] = df['onpromotion'] / (promo_avg + 1)
+
+    # Interactions
     df['promo_during_payday'] = df['onpromotion'] * df['is_payday']
+    df["family_store_nb"] = df["family"].astype(str) + "_" + df["store_nbr"].astype(str)
+    df["family_state"] = df["family"].astype(str) + "_" + df["state"].astype(str)
+    df["family_onpromotion"] = df["family"].astype(str) + "_" + df["onpromotion"].astype(str)
 
     # Nettoyage final
     cols_to_drop = ['locale', 'locale_name', 'description', 'transferred']
