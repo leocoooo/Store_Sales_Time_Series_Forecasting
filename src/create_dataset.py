@@ -57,7 +57,7 @@ def create_dataset(train_df, stores, oil, holidays):
     for i in [1, 2, 3, 4, 5, 6, 7, 14, 21, 28, 56, 364]:
         df[f'sales_lag_{i}'] = grouped.shift(i)
 
-    for i in [7, 28]:
+    for i in [7, 28, 56]:
         df[f'rolling_mean_{i}'] = grouped.shift(1).transform(lambda x: x.rolling(window=i).mean())
 
     df['rolling_std_7'] = grouped.shift(1).transform(lambda x: x.rolling(window=7).std())
