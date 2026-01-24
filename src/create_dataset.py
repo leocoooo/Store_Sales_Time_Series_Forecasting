@@ -9,20 +9,24 @@ def create_dataset(train_df, stores, oil, holidays):
     oil = oil.set_index('date').reindex(all_dates).ffill().bfill().reset_index()
     oil.columns = ['date', 'dcoilwtico']
 
-    holidays = holidays[holidays['transferred'] == False].copy()
-    holidays = holidays.drop_duplicates(subset=['date']).rename(columns={'type': 'holiday_type'})
+    # On se passe des jours fériés pour l'instant car on capte tout avec la variable is_store_closed, 
+    # et surtout le merging n'est pas trivial à cause des fêtes locales / regionales / nationales différentes, 
+    # on n'a pas toujours les clé ect.
+
+    # holidays = holidays[holidays['transferred'] == False].copy()
+    # holidays = holidays.rename(columns={'type': 'holiday_type'})
     stores = stores.rename(columns={'type': 'store_type'})
 
     # Fusions des tables
     df = df.merge(stores, on='store_nbr', how='left')
     df = df.merge(oil, on='date', how='left')
-    df = df.merge(holidays, on='date', how='left')
+    # df = df.merge(holidays, on='date', how='left')
 
     # Gestion des jours fériés et fermetures
-    df['is_holiday_local'] = ((df['locale'] == 'Local') & (df['locale_name'] == df['city'])).astype(int)
-    df['is_holiday_regional'] = ((df['locale'] == 'Regional') & (df['locale_name'] == df['state'])).astype(int)
-    df['is_holiday_national'] = (df['locale'] == 'National').astype(int)
-    df['holiday_type'] = df['holiday_type'].fillna('Work Day')
+    # df['is_holiday_local'] = ((df['locale'] == 'Local') & (df['locale_name'] == df['city'])).astype(int)
+    # df['is_holiday_regional'] = ((df['locale'] == 'Regional') & (df['locale_name'] == df['state'])).astype(int)
+    # df['is_holiday_national'] = (df['locale'] == 'National').astype(int)
+    # df['holiday_type'] = df['holiday_type'].fillna('Normal Day')
     
     # Détection des fermetures réelles (si toutes les familles du magasin vendent 0)
     store_daily_total = df.groupby(['store_nbr', 'date'])['sales'].transform('sum')
@@ -65,9 +69,6 @@ def create_dataset(train_df, stores, oil, holidays):
 
     df['rolling_std_7'] = grouped.shift(1).transform(lambda x: x.rolling(window=7).std())
     df['store_family_velocity'] = grouped.shift(1).transform(lambda x: x.rolling(window=30, min_periods=1).mean())
-
-    # Encodage cible et tendances
-    df['target_enc_store_family'] = grouped.transform(lambda x: x.shift(1).expanding().mean()).fillna(0)
     
     # Pétrole : Tendance avec backfill pour les premières valeurs
     df['oil_trend_30'] = df['dcoilwtico'] - df['dcoilwtico'].shift(30).bfill()
@@ -82,10 +83,34 @@ def create_dataset(train_df, stores, oil, holidays):
     df["family_state"] = df["family"].astype(str) + "_" + df["state"].astype(str)
     df["family_onpromotion"] = df["family"].astype(str) + "_" + df["onpromotion"].astype(str)
 
-    # 1 si aucune vente sur les 7 derniers jours, sinon 0
-    df['is_family_unactive'] = df.groupby(['store_nbr', 'family'])['sales'].transform(
-        lambda x: (x.rolling(window=7, min_periods=1).sum() == 0).astype(int)
-    )
+    # Calculer la moyenne de ventes par jour pour chaque famille (sur tout le dataset)
+    family_volumes = df.groupby('family')['sales'].mean()
+
+    # Calculer les seuils dynamiques via les quartiles
+    q1 = family_volumes.quantile(0.25) # Les 25% plus petites familles
+    q3 = family_volumes.quantile(0.75) # Les 25% plus grosses familles
+    
+    print(f"Seuils calculés : Q1={q1:.2f} (14j), Q3={q3:.2f} (3j)")
+
+    df['is_family_unactive'] = 0
+    # Adapter dynamiquement la fenêtre de détection d'inactivité selon le volume de ventes moyen
+    for fam in df['family'].unique():
+        avg_sales = family_volumes[fam]
+        
+        if avg_sales >= q3:
+            w = 3   # Haute rotation : très réactif
+        elif avg_sales <= q1:
+            w = 14  # Faible rotation : très tolérant
+        else:
+            w = 7   # Standard
+
+        print(f"Famille '{fam}': avg_sales={avg_sales:.2f} -> fenêtre d'inactivité={w} jours")
+            
+        # Application du flag pour cette famille précise
+        mask = df['family'] == fam
+        df.loc[mask, 'is_family_unactive'] = df[mask].groupby('store_nbr')['sales'].transform(
+            lambda x: (x.shift(1).rolling(window=w, min_periods=1).sum() == 0).astype(int)
+        )
 
     # On ne marque "unactive" que si le magasin a eu des ventes (ouvert) mais que la famille n'en a pas eu.
     df['is_family_unactive'] = ((df['is_family_unactive'] == 1) & (df['is_store_closed'] == 0)).astype(int)
