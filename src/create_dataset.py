@@ -82,6 +82,14 @@ def create_dataset(train_df, stores, oil, holidays):
     df["family_state"] = df["family"].astype(str) + "_" + df["state"].astype(str)
     df["family_onpromotion"] = df["family"].astype(str) + "_" + df["onpromotion"].astype(str)
 
+    # 1 si aucune vente sur les 7 derniers jours, sinon 0
+    df['is_family_unactive'] = df.groupby(['store_nbr', 'family'])['sales'].transform(
+        lambda x: (x.rolling(window=7, min_periods=1).sum() == 0).astype(int)
+    )
+
+    # On ne marque "unactive" que si le magasin a eu des ventes (ouvert) mais que la famille n'en a pas eu.
+    df['is_family_unactive'] = ((df['is_family_unactive'] == 1) & (df['is_store_closed'] == 0)).astype(int)
+
     # Nettoyage final
     cols_to_drop = ['locale', 'locale_name', 'description', 'transferred']
     df = df.drop(columns=[c for c in cols_to_drop if c in df.columns])
