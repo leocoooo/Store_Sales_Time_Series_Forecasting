@@ -167,10 +167,12 @@ class DatasetProcessor:
     def transform(self, input_df, is_test=False):
         # Si c'est le test, on ajoute l'historique du train pour les lags
         if is_test:
-            print("Mode TEST détecté : ajout de l'historique du Train pour les lags...")
+            print("\nMode TEST détecté : ajout de l'historique du Train pour les lags...")
             df = pd.concat([self.train_history, input_df], axis=0).reset_index(drop=True)
         else:
             df = input_df.copy()
+
+        print("Nombre de lignes avant traitement :", len(df))
         
         oil_data = self._prepare_oil(df['date'].min(), df['date'].max())
         stores_data = self.stores.rename(columns={'type': 'store_type'})
@@ -191,6 +193,8 @@ class DatasetProcessor:
 
         cols_to_drop = ['locale', 'locale_name', 'description', 'transferred', 'holiday_priority']
         df = df.drop(columns=[c for c in cols_to_drop if c in df.columns])
+
+        print("Nombre de lignes après traitement :", len(df))
         
         return self._optimize_memory(df)
     
