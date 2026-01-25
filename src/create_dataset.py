@@ -29,9 +29,12 @@ class DatasetProcessor:
         
         oil_clean['oil_price_lag_8w'] = oil_clean['oil_price'].shift(56)
         oil_clean['oil_price_lag_8w_trend_30'] = oil_clean['oil_price_lag_8w'] - oil_clean['oil_price_lag_8w'].shift(30)
+        oil_clean['oil_price_lag_8w_trend_60'] = oil_clean['oil_price_lag_8w'] - oil_clean['oil_price_lag_8w'].shift(60)
         
         oil_clean['oil_price_lag_8w'] = oil_clean['oil_price_lag_8w'].bfill()
         oil_clean['oil_price_lag_8w_trend_30'] = oil_clean['oil_price_lag_8w_trend_30'].bfill()
+        oil_clean['oil_price_lag_8w_trend_60'] = oil_clean['oil_price_lag_8w_trend_60'].bfill()
+
         return oil_clean
 
     def _handle_holidays(self, df):
@@ -83,6 +86,7 @@ class DatasetProcessor:
         
         df['days_to_christmas'] = (pd.to_datetime(df['date'].dt.year.astype(str) + '-12-25') - df['date']).dt.days
         df.loc[df['days_to_christmas'] < 0, 'days_to_christmas'] += 365
+
         return df
 
     def _add_lags_and_rolling(self, df):
@@ -98,6 +102,7 @@ class DatasetProcessor:
             
         df["log_sales"] = np.log1p(df["sales"])
         df['rolling_std_7'] = grouped.shift(1).transform(lambda x: x.rolling(window=7).std())
+
         return df
 
     def _handle_inactivity(self, df):
@@ -162,6 +167,7 @@ class DatasetProcessor:
         self.train_history = train_df[train_df['date'] > (last_date - pd.Timedelta(days=365))].copy()
         
         print(f"Stats enregistrées pour {len(self.family_stats)} familles.")
+        
         return self
 
     def transform(self, input_df, is_test=False):
