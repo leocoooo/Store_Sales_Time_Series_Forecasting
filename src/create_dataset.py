@@ -26,11 +26,19 @@ class DatasetProcessor:
         oil_clean = self.oil.copy()
         oil_clean = oil_clean.set_index('date').reindex(all_dates).ffill().bfill().reset_index()
         oil_clean.columns = ['date', 'oil_price']
+
+        # Sans lag
+        oil_clean['oil_price_trend_30'] = oil_clean['oil_price'] - oil_clean['oil_price'].shift(30)
+        oil_clean['oil_price_trend_60'] = oil_clean['oil_price'] - oil_clean['oil_price'].shift(60)
+        # On bfill les 60 premiers jours qui sont à NaN suite aux shifts
+        oil_clean['oil_price_trend_30'] = oil_clean['oil_price_trend_30'].bfill()
+        oil_clean['oil_price_trend_60'] = oil_clean['oil_price_trend_60'].bfill()
         
+        # Avec lag de 8 semaines (56 jours)
         oil_clean['oil_price_lag_8w'] = oil_clean['oil_price'].shift(56)
         oil_clean['oil_price_lag_8w_trend_30'] = oil_clean['oil_price_lag_8w'] - oil_clean['oil_price_lag_8w'].shift(30)
         oil_clean['oil_price_lag_8w_trend_60'] = oil_clean['oil_price_lag_8w'] - oil_clean['oil_price_lag_8w'].shift(60)
-        
+        # On bfill les 56 + 60 premiers jours qui sont à NaN suite aux shifts
         oil_clean['oil_price_lag_8w'] = oil_clean['oil_price_lag_8w'].bfill()
         oil_clean['oil_price_lag_8w_trend_30'] = oil_clean['oil_price_lag_8w_trend_30'].bfill()
         oil_clean['oil_price_lag_8w_trend_60'] = oil_clean['oil_price_lag_8w_trend_60'].bfill()
