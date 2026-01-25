@@ -84,19 +84,3 @@ def apply_catboost_encoding(df, cols, target, alpha=None, nb_previous_days_to_ig
     return df_encoded
 
 
-def apply_label_encoding_nn(df, cols):
-    df_encoded = df.copy()
-    label_encoders = {}
-    
-    for col in cols:
-        le = LabelEncoder()
-        # On convertit en string pour gérer les éventuels NaN comme une catégorie
-        df_encoded[col] = df_encoded[col].astype(str)
-        df_encoded[f'label_{col}'] = le.fit_transform(df_encoded[col])
-        label_encoders[col] = le
-        
-        # Affichage pour dimensionner la couche d'embedding : Input_dim = n_unique
-        n_unique = df_encoded[f'label_{col}'].nunique()
-        print(f"Col: {col} | Unique categories: {n_unique} | Embedding suggest dim: {min(50, (n_unique + 1) // 2)}")
-        
-    return df_encoded, label_encoders

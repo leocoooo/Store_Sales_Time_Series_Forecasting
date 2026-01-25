@@ -43,3 +43,52 @@ def evaluate_model(y_true, y_pred, is_store_closed, is_family_unactive):
         "rmse": weighted_rmse,
         "rmsle": weighted_rmsle,
     }
+
+
+def time_series_expanding_window(df, n_test_days=56, n_splits=5):
+    """
+    Genere des indices pour une validation croisee en fenetre croissante.
+    
+    Arguments:
+        df: DataFrame complet (doit contenir une colonne 'date')
+        n_test_days: Nombre de jours dans chaque fenetre de test (ex: 56 jours / 8 semaines)
+        n_splits: Nombre de segments de validation souhaites
+        
+    Retourne:
+        Une liste de tuples (train_index, val_index)
+    """
+    print(f"Preparation de la validation croisee : {n_splits} splits de {n_test_days} jours.")
+    
+    # Recuperation des dates uniques et triees
+    unique_dates = np.sort(df['date'].unique())
+    total_days = len(unique_dates)
+    
+    # Verification de la faisabilite
+    required_days = n_splits * n_test_days
+    if required_days >= total_days:
+        raise ValueError(f"Pas assez de donnees pour {n_splits} splits de {n_test_days} jours.")
+
+    splits = []
+    
+    # Generation des fenetres en partant de la fin (du plus récent au plus ancien)
+    for i in range(n_splits):
+        # Calcul des positions des dates
+        # Fin du test = fin des donnees moins les splits deja calcules
+        end_test_idx = total_days - (i * n_test_days)
+        start_test_idx = end_test_idx - n_test_days
+        
+        # Le train contient tout ce qui precede le debut du test actuel
+        train_dates = unique_dates[:start_test_idx]
+        val_dates = unique_dates[start_test_idx:end_test_idx]
+        
+        # On recupere les indices correspondants dans le dataframe original
+        train_indices = df[df['date'].isin(train_dates)].index
+        val_indices = df[df['date'].isin(val_dates)].index
+        
+        # On stocke (Train, Val) - On les insere au debut pour garder l'ordre chronologique
+        splits.insert(0, (train_indices, val_indices))
+        
+        print(f"Split {n_splits - i}: Train jusqu'au {train_dates[-1].date()}, "
+              f"Val du {val_dates[0].date()} au {val_dates[-1].date()}")
+
+    return splits
