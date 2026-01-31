@@ -7,4 +7,4 @@ wheels/
 *.egg-info
 .venv
 data/ 
-*.xlsx
+.DS_Store
